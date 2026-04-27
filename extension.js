@@ -29,6 +29,9 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import ContainerService from './src/containerService.js';
 import { HideExtension } from './src/common/enum.js';
 
+import { PACKAGE_VERSION } from 'resource:///org/gnome/shell/misc/config.js';
+const [majorVer] = PACKAGE_VERSION.split('.').map(s => parseInt(s));
+
 export default class Lilypad extends Extension {
     constructor(metadata) {
         super(metadata);
@@ -36,6 +39,10 @@ export default class Lilypad extends Extension {
 
     enable() {
         this._settings = this.getSettings();
+
+        this._impl = {
+            useLegacyButtonSignals: majorVer < 50,
+        }
 
         // init reorder service
         this._containerService = new ContainerService({
@@ -137,6 +144,7 @@ export default class Lilypad extends Extension {
 
         this._indicator.track_hover = true
 
+        // set up click + touch handlers
         const _onClick = (event) => {
             switch (event.get_button()) {
                 // do not show menu on left click
@@ -154,28 +162,28 @@ export default class Lilypad extends Extension {
             return Clutter.EVENT_PROPAGATE;
         }
 
-        if (this._indicator._clickGesture)
-            this._indicator._clickGesture.connect('recognize', _onClick);
-
-        this._indicator.connect('button-press-event', (actor, event) => _onClick(event));
-
-        this._indicator.connect('touch-event', (actor, event) => {
-            // only handle initial tap
-            switch (event.type()) {
-                case Clutter.EventType.TOUCH_BEGIN:
-                    if (!this._updateIndicatorVisibility())     // indicator is hidden
+        if (!this._impl.useLegacyButtonSignals && this._indicator._clickGesture) {
+            this._indicator._clickGesture.connect('recognize', _onClick);   // touch should trigger click gesture
+        } else {
+            this._indicator.connect('button-press-event', (actor, event) => _onClick(event));
+    
+            this._indicator.connect('touch-event', (actor, event) => {
+                // only handle initial tap
+                switch (event.type()) {
+                    case Clutter.EventType.TOUCH_BEGIN:
+                        if (!this._updateIndicatorVisibility())     // indicator is hidden
+                            break;
+    
+                        this._toggleIcons();
+                        this._toggleMenu();
                         break;
-
-                    this._toggleIcons();
-                    this._toggleMenu();
-                    break;
-                default:
-                    // ignore others, only touch_begin toggles gjs.button menu
-                    break;
-            }
-
-            return Clutter.EVENT_PROPAGATE;
-        });
+                    default:
+                        // ignore others, only touch_begin toggles gjs.button menu
+                        break;
+                }
+                return Clutter.EVENT_PROPAGATE;
+            });
+        }
     }
 
     _toggleMenu() {
