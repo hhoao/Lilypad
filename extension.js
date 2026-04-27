@@ -106,10 +106,10 @@ export default class Lilypad extends Extension {
 
     disable() {
         this._signalHandler.forEach(signal => signal.object.disconnect(signal.id));
-        
+
         Panel.Panel.prototype.addToStatusArea = Panel.Panel.prototype._originalAddToStatusArea;
         Panel.Panel.prototype._originalAddToStatusArea = null;
-        
+
         this._containerService?.destroy();
         this._containerService = null;
 
@@ -137,13 +137,13 @@ export default class Lilypad extends Extension {
 
         this._indicator.track_hover = true
 
-        this._indicator.connect('button-press-event', (actor, event) => {            
+        const _onClick = (event) => {
             switch (event.get_button()) {
                 // do not show menu on left click
                 case Clutter.BUTTON_PRIMARY:
                     if (!this._updateIndicatorVisibility())     // indicator is hidden
                         break;
- 
+
                     this._toggleIcons();
                     this._toggleMenu();
                     break;
@@ -152,7 +152,12 @@ export default class Lilypad extends Extension {
                     break;
             }
             return Clutter.EVENT_PROPAGATE;
-        });
+        }
+
+        if (this._indicator._clickGesture)
+            this._indicator._clickGesture.connect('recognize', _onClick);
+
+        this._indicator.connect('button-press-event', (actor, event) => _onClick(event));
 
         this._indicator.connect('touch-event', (actor, event) => {
             // only handle initial tap
@@ -183,7 +188,7 @@ export default class Lilypad extends Extension {
             return false;
         }
 
-       let isOpen = this._containerService.toggleIcons();
+        let isOpen = this._containerService.toggleIcons();
         this._setIcon(isOpen);
 
         if (isOpen) {
@@ -246,8 +251,8 @@ export default class Lilypad extends Extension {
 
                 for (let menu of Main.panel.menuManager._menus) {
                     for (let orderActor of detectActors) {
-                        if ( ((menu.actor?.hover || menu.actor?.is_visible()) && menu.sourceActor == orderActor)
-                                || orderActor.hover) {
+                        if (((menu.actor?.hover || menu.actor?.is_visible()) && menu.sourceActor == orderActor)
+                            || orderActor.hover) {
                             collapse = false;
                             break;
                         }
